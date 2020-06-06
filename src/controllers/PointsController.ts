@@ -15,7 +15,7 @@ class PointsController {
      * e compara se id da tabela points é = ao point_id da tabela point_items
      *
      */
-    console.log('parsed', parsedItems)
+    console.log('parsed', parsedItems);
     const points = await knex('points')
       .join('point_items', 'points.id', '=', 'point_items.point_id')
       .whereIn('point_items.item_id', parsedItems)
@@ -24,7 +24,14 @@ class PointsController {
       .distinct()
       .select('points.*');
 
-    return res.json(points);
+    const serializedPoints = points.map((point) => {
+      return {
+        ...point,
+        image_url: `http://192.168.0.103:3333/uploads/perfil/${point.image}`,
+      };
+    });
+
+    return res.json(serializedPoints);
   }
   async create(req: Request, res: Response) {
     const {
@@ -41,7 +48,7 @@ class PointsController {
     const trx = await knex.transaction();
 
     const point = {
-      image: 'image-fake',
+      image: req.file.filename,
       name,
       email,
       whatsapp,
@@ -55,12 +62,16 @@ class PointsController {
 
     const point_id = insertedIds[0];
 
-    const pointItems = items.map((item_id: number) => {
-      return {
-        item_id,
-        point_id,
-      };
-    });
+    const pointItems = items
+      .split(',') // divide texto por virgulas
+      .map((item: string) => Number(item.trim())) // tira espaços e transforma em array de numeros
+      .map((item_id: number) => {
+        return {
+          item_id,
+          point_id,
+        };
+      });
+
     await trx('point_items').insert(pointItems);
     await trx.commit();
 
@@ -72,6 +83,10 @@ class PointsController {
   async show(req: Request, res: Response) {
     const { id } = req.params; // id do provedor
     const point = await knex('points').where('id', id).first();
+    const serializedPoint = {
+      ...point,
+      image_url: `http://192.168.0.103:3333/uploads/perfil/${point.image}`,
+    };
 
     if (!point)
       return response.status(400).json({ message: 'Point not found' });
@@ -81,7 +96,7 @@ class PointsController {
       .where('point_items.point_id', id)
       .select('items.title');
 
-    return res.json({ point, items });
+    return res.json({ point:serializedPoint, items });
   }
 }
 
